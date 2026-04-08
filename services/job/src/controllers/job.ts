@@ -184,13 +184,12 @@ export const updateJob = TryCatch(async (req: AuthenticatedRequest, res) => {
   is_active = ${is_active}
   WHERE job_id = ${req.params.jobId} RETURNING *;
   `;
-
+  
   res.json({
-    message: "Job updated successfully",
+    message: "job updated successfully",
     job: updatedJob,
   });
 });
-
 export const getAllCompany = TryCatch(
   async (req: AuthenticatedRequest, res) => {
     const companies =

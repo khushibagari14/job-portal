@@ -98,7 +98,7 @@ export const updateJob = TryCatch(async (req, res) => {
   WHERE job_id = ${req.params.jobId} RETURNING *;
   `;
     res.json({
-        message: "Job updated successfully",
+        message: "job updated successfully",
         job: updatedJob,
     });
 });
