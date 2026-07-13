@@ -13,14 +13,14 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@google/genai": "^1.29.0",
+    "@google/genai": "^1.52.0",
     "@types/kafkajs": "^1.9.0",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "kafkajs": "^2.2.4",
-    "nodemailer": "^7.0.13"
+    "nodemailer": "^8.0.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
