@@ -31,6 +31,70 @@ dotenv.config();
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY_GEMINI });
 
+// Gemini occasionally returns transient errors (503 UNAVAILABLE / overloaded,
+// 429 rate-limited). These usually succeed if you retry after a short delay,
+// so wrap generateContent calls with a small retry-with-backoff helper
+// instead of failing the whole request on the first attempt.
+async function generateContentWithRetry(
+  params: Parameters<typeof ai.models.generateContent>[0],
+  maxRetries = 3
+) {
+  let lastError: any;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await ai.models.generateContent(params);
+    } catch (error: any) {
+      lastError = error;
+
+      const status =
+        error?.status || error?.error?.status || error?.response?.status;
+      const isTransient =
+        status === 503 ||
+        status === "UNAVAILABLE" ||
+        status === 429 ||
+        status === "RESOURCE_EXHAUSTED";
+
+      if (!isTransient || attempt === maxRetries) {
+        throw error;
+      }
+
+      // Exponential backoff: 1s, 2s, 4s...
+      const delayMs = 1000 * Math.pow(2, attempt);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  throw lastError;
+}
+
+// Turns any Gemini/model error into a clean, user-facing message instead
+// of leaking raw provider JSON to the client.
+function friendlyAiError(error: any): { statusCode: number; message: string } {
+  const status =
+    error?.status || error?.error?.status || error?.response?.status;
+
+  if (status === 503 || status === "UNAVAILABLE") {
+    return {
+      statusCode: 503,
+      message:
+        "Our AI analyzer is experiencing high demand right now. Please try again in a moment.",
+    };
+  }
+
+  if (status === 429 || status === "RESOURCE_EXHAUSTED") {
+    return {
+      statusCode: 429,
+      message: "Too many requests right now. Please wait a bit and try again.",
+    };
+  }
+
+  return {
+    statusCode: 500,
+    message: "Something went wrong while analyzing your resume. Please try again.",
+  };
+}
+
 router.post("/career", async (req, res) => {
   try {
     const { skills } = req.body;
@@ -79,7 +143,7 @@ Mastery', 'DevOps & Cloud').",
 } 
  `;
 
-    const response = await ai.models.generateContent({
+    const response = await generateContentWithRetry({
       model: "gemini-2.5-flash",
       contents: prompt,
     });
@@ -106,9 +170,8 @@ Mastery', 'DevOps & Cloud').",
 
     res.json(jsonResponse);
   } catch (error: any) {
-    res.status(500).json({
-      message: error.message,
-    });
+    const { statusCode, message } = friendlyAiError(error);
+    res.status(statusCode).json({ message });
   }
 });
 
@@ -168,7 +231,7 @@ The JSON object should have the following structure:
 Focus on: - File format and structure compatibility - Proper use of standard section headings - Keyword optimization - Formatting issues (tables, columns, graphics, special characters) - Contact information placement - Date formatting - Use of action verbs and quantifiable achievements - Section organization and flow 
 `;
 
-    const response = await ai.models.generateContent({
+    const response = await generateContentWithRetry({
       model: "gemini-2.5-flash",
       contents: [
         {
@@ -210,9 +273,8 @@ Focus on: - File format and structure compatibility - Proper use of standard sec
 
     res.json(jsonResponse);
   } catch (error: any) {
-    res.status(500).json({
-      message: error.message,
-    });
+    const { statusCode, message } = friendlyAiError(error);
+    res.status(statusCode).json({ message });
   }
 });
 
